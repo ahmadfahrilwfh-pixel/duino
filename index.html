@@ -16,7 +16,6 @@
         .btn-load { background-color: #f9e2af; }
         .btn-stop { background-color: #f38ba8; }
         
-        /* Mengatur posisi papan Arduino agar di tengah */
         #uno-board { margin: auto; }
     </style>
     
@@ -56,9 +55,7 @@
             <button id="btn-action">▶ JALANKAN SIMULASI</button>
         </div>
         <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column;">
-            
             <wokwi-arduino-uno id="uno-board"></wokwi-arduino-uno>
-            
             <p style="margin-top:20px;">Status PIN 13: <strong id="status-val">LOW</strong></p>
         </div>
     </div>
@@ -68,22 +65,22 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         
-        // IMPORT SIMULATOR (Menggunakan link CDN agar tidak error Not Found)
-        import { AVRRunner, hxToBin } from 'https://esm.run/avr8js';
+        // IMPORT SIMULATOR (Menggunakan Native avr8js Components)
+        import { CPU, AVRIOPort, portBConfig } from 'https://esm.run/avr8js';
 
         // ==========================================
         // KONFIGURASI FIRESTORE
         // ==========================================
-const firebaseConfig = {
-  apiKey: "AIzaSyBmZR9PeOQIdHBwV5USTxU3_41KfIbw9tQ",
-  authDomain: "kwtabiyoso.firebaseapp.com",
-  databaseURL: "https://kwtabiyoso-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "kwtabiyoso",
-  storageBucket: "kwtabiyoso.firebasestorage.app",
-  messagingSenderId: "1074176217961",
-  appId: "1:1074176217961:web:1ffea7385504149f5da3f8",
-  measurementId: "G-BMC8S9KX3D"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmZR9PeOQIdHBwV5USTxU3_41KfIbw9tQ",
+            authDomain: "kwtabiyoso.firebaseapp.com",
+            databaseURL: "https://kwtabiyoso-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "kwtabiyoso",
+            storageBucket: "kwtabiyoso.firebasestorage.app",
+            messagingSenderId: "1074176217961",
+            appId: "1:1074176217961:web:1ffea7385504149f5da3f8",
+            measurementId: "G-BMC8S9KX3D"
+        };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const docRef = doc(db, "projects", "sim_user_01"); 
@@ -93,12 +90,31 @@ const firebaseConfig = {
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
         const btnAction = document.getElementById('btn-action');
-        
-        // 3. TARGETKAN PAPAN ARDUINO
         const unoBoard = document.getElementById('uno-board');
         const statusVal = document.getElementById('status-val');
 
-        let runner = null;
+        let runnerInterval = null;
+
+        // ==========================================
+        // FUNGSI PEMBACA FILE HEX MANUAL
+        // ==========================================
+        function parseHex(hex) {
+            const data = new Uint8Array(32768);
+            const lines = hex.split('\n');
+            for (const line of lines) {
+                if (line.startsWith(':')) {
+                    const length = parseInt(line.substring(1, 3), 16);
+                    const address = parseInt(line.substring(3, 7), 16);
+                    const recordType = parseInt(line.substring(7, 9), 16);
+                    if (recordType === 0) { // Hanya proses record data
+                        for (let i = 0; i < length; i++) {
+                            data[address + i] = parseInt(line.substring(9 + i * 2, 11), 16);
+                        }
+                    }
+                }
+            }
+            return data;
+        }
 
         // ==========================================
         // LOGIKA FIRESTORE
@@ -112,7 +128,7 @@ const firebaseConfig = {
                 });
                 alert("Kode berhasil disimpan ke Firestore!");
             } catch (e) {
-                alert("Gagal menyimpan. Pastikan Konfigurasi Firebase Benar! Error: " + e.message);
+                alert("Gagal menyimpan. Pastikan Aturan Keamanan Database Firestore (Rules) sudah diset 'allow read, write: if true;'. Error: " + e.message);
             } finally {
                 btnSave.innerText = "💾 SIMPAN KE FIRESTORE";
             }
@@ -136,31 +152,37 @@ const firebaseConfig = {
         });
 
         // ==========================================
-        // LOGIKA SIMULATOR (AVR8JS + WOKWI)
+        // LOGIKA SIMULATOR MESIN CPU
         // ==========================================
         btnAction.addEventListener('click', () => {
-            if (runner) {
-                runner.stop();
-                runner = null;
+            if (runnerInterval) {
+                // Matikan looping simulasi
+                clearInterval(runnerInterval);
+                runnerInterval = null;
                 btnAction.innerText = "▶ JALANKAN SIMULASI";
                 btnAction.classList.remove('btn-stop');
                 
-                // 4. MATIKAN LAMPU L DI PAPAN ARDUINO SAAT STOP
                 unoBoard.led13 = false;
                 statusVal.innerText = "LOW";
                 return;
             }
 
             try {
+                // 1. Siapkan Memori dan Masukkan Data Hex
+                const program = new Uint16Array(32768);
+                const programBytes = new Uint8Array(program.buffer);
                 const hexData = hexInput.value.trim();
-                const binProgram = hxToBin(hexData);
+                const hexBytes = parseHex(hexData);
+                programBytes.set(hexBytes);
                 
-                runner = new AVRRunner(binProgram);
+                // 2. Inisialisasi CPU
+                const cpu = new CPU(program);
+                const portB = new AVRIOPort(cpu, portBConfig);
                 
-                runner.portB.addListener((value) => {
+                // 3. Tangkap Perubahan pada Pin 13 (Port B, Bit 5)
+                portB.addListener((value) => {
                     const pinState = (value & 0x20) !== 0; 
                     if (pinState) {
-                        // 5. NYALAKAN LAMPU L DI PAPAN ARDUINO
                         unoBoard.led13 = true;
                         statusVal.innerText = "HIGH";
                     } else {
@@ -169,7 +191,14 @@ const firebaseConfig = {
                     }
                 });
 
-                runner.start();
+                // 4. Jalankan Loop Mesin (~60 Frames per second)
+                runnerInterval = setInterval(() => {
+                    const cyclesToRun = cpu.cycles + 16000000 / 60; // Simulasi kecepatan 16MHz
+                    while (cpu.cycles < cyclesToRun) {
+                        cpu.tick();
+                    }
+                }, 16);
+
                 btnAction.innerText = "⏹ HENTIKAN SIMULASI";
                 btnAction.classList.add('btn-stop');
 
