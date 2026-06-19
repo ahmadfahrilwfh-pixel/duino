@@ -3,21 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Embedded Simulator - Firestore Edition</title>
+    <title>Embedded Simulator - Firestore & Wokwi UI</title>
     <style>
         :root { --bg: #1e1e2e; --panel: #252538; --text: #cdd6f4; --accent: #74c7ec; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); display: flex; gap: 20px; height: 90vh; }
         .panel { flex: 1; background: var(--panel); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; border: 1px solid #313244; }
         textarea { flex: 1; background: #181825; color: #a6e3a1; border: 1px solid #313244; padding: 15px; font-family: monospace; border-radius: 6px; resize: none; outline: none; margin-bottom: 15px; }
         .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        button { background: var(--accent); color: #11111b; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        button { background: var(--accent); color: #11111b; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { opacity: 0.8; }
         .btn-save { background-color: #a6e3a1; }
         .btn-load { background-color: #f9e2af; }
         .btn-stop { background-color: #f38ba8; }
-        #virtual-led { width: 60px; height: 60px; border-radius: 50%; background: #45475a; margin: auto; transition: 0.1s; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
-        #virtual-led.active { background: #f38ba8; box-shadow: 0 0 30px #f38ba8; }
+        
+        /* Mengatur posisi papan Arduino agar di tengah */
+        #uno-board { margin: auto; }
     </style>
+    
+    <script type="module" src="https://esm.run/@wokwi/elements"></script>
 </head>
 <body>
 
@@ -53,47 +56,52 @@
             <button id="btn-action">▶ JALANKAN SIMULASI</button>
         </div>
         <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column;">
-            <div id="virtual-led"></div>
+            
+            <wokwi-arduino-uno id="uno-board"></wokwi-arduino-uno>
+            
             <p style="margin-top:20px;">Status PIN 13: <strong id="status-val">LOW</strong></p>
         </div>
     </div>
 
     <script type="module">
-        // 1. IMPORT FIREBASE (Menggunakan CDN v10 Modular untuk Web Statis)
+        // IMPORT FIREBASE 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         
-        // 2. IMPORT SIMULATOR (Pastikan file avr8js.js sudah didownload ke folder libs/)
-        import { AVRRunner, hxToBin } from './libs/avr8js.js';
+        // IMPORT SIMULATOR (Menggunakan link CDN agar tidak error Not Found)
+        import { AVRRunner, hxToBin } from 'https://esm.run/avr8js';
 
         // ==========================================
-        // KONFIGURASI FIRESTORE (GANTI DENGAN MILIKMU)
+        // KONFIGURASI FIRESTORE
         // ==========================================
-        const firebaseConfig = {
-            apiKey: "API_KEY_KAMU",
-            authDomain: "project-id.firebaseapp.com",
-            projectId: "project-id",
-            storageBucket: "project-id.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcde"
-        };
-
+const firebaseConfig = {
+  apiKey: "AIzaSyBmZR9PeOQIdHBwV5USTxU3_41KfIbw9tQ",
+  authDomain: "kwtabiyoso.firebaseapp.com",
+  databaseURL: "https://kwtabiyoso-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kwtabiyoso",
+  storageBucket: "kwtabiyoso.firebasestorage.app",
+  messagingSenderId: "1074176217961",
+  appId: "1:1074176217961:web:1ffea7385504149f5da3f8",
+  measurementId: "G-BMC8S9KX3D"
+};
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const docRef = doc(db, "projects", "sim_user_01"); // Nama koleksi & ID dokumen
+        const docRef = doc(db, "projects", "sim_user_01"); 
 
-        // Elemen DOM
+        // ELEMEN DOM
         const hexInput = document.getElementById('hex-input');
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
         const btnAction = document.getElementById('btn-action');
-        const led = document.getElementById('virtual-led');
+        
+        // 3. TARGETKAN PAPAN ARDUINO
+        const unoBoard = document.getElementById('uno-board');
         const statusVal = document.getElementById('status-val');
 
         let runner = null;
 
         // ==========================================
-        // LOGIKA FIRESTORE (SIMPAN & MUAT)
+        // LOGIKA FIRESTORE
         // ==========================================
         btnSave.addEventListener('click', async () => {
             try {
@@ -104,7 +112,7 @@
                 });
                 alert("Kode berhasil disimpan ke Firestore!");
             } catch (e) {
-                alert("Gagal menyimpan: " + e.message);
+                alert("Gagal menyimpan. Pastikan Konfigurasi Firebase Benar! Error: " + e.message);
             } finally {
                 btnSave.innerText = "💾 SIMPAN KE FIRESTORE";
             }
@@ -128,7 +136,7 @@
         });
 
         // ==========================================
-        // LOGIKA SIMULATOR (AVR8JS)
+        // LOGIKA SIMULATOR (AVR8JS + WOKWI)
         // ==========================================
         btnAction.addEventListener('click', () => {
             if (runner) {
@@ -136,7 +144,9 @@
                 runner = null;
                 btnAction.innerText = "▶ JALANKAN SIMULASI";
                 btnAction.classList.remove('btn-stop');
-                led.classList.remove('active');
+                
+                // 4. MATIKAN LAMPU L DI PAPAN ARDUINO SAAT STOP
+                unoBoard.led13 = false;
                 statusVal.innerText = "LOW";
                 return;
             }
@@ -150,10 +160,11 @@
                 runner.portB.addListener((value) => {
                     const pinState = (value & 0x20) !== 0; 
                     if (pinState) {
-                        led.classList.add('active');
+                        // 5. NYALAKAN LAMPU L DI PAPAN ARDUINO
+                        unoBoard.led13 = true;
                         statusVal.innerText = "HIGH";
                     } else {
-                        led.classList.remove('active');
+                        unoBoard.led13 = false;
                         statusVal.innerText = "LOW";
                     }
                 });
