@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Embedded Simulator - Firestore & Wokwi UI</title>
+    <title>Embedded Simulator - Monaco Editor Edition</title>
     <style>
         :root { --bg: #1e1e2e; --panel: #252538; --text: #cdd6f4; --accent: #74c7ec; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); display: flex; gap: 20px; height: 90vh; }
         .panel { flex: 1; background: var(--panel); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; border: 1px solid #313244; }
-        textarea { flex: 1; background: #181825; color: #a6e3a1; border: 1px solid #313244; padding: 15px; font-family: monospace; border-radius: 6px; resize: none; outline: none; margin-bottom: 15px; }
+        
+        /* Container untuk Monaco Editor */
+        #editor-container { flex: 1; border-radius: 6px; overflow: hidden; border: 1px solid #313244; margin-bottom: 15px; }
+        
         .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
         button { background: var(--accent); color: #11111b; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { opacity: 0.8; }
@@ -20,39 +23,24 @@
     </style>
     
     <script type="module" src="https://esm.run/@wokwi/elements"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
 </head>
 <body>
 
     <div class="panel">
-        <h3>Kode Hex & Database</h3>
+        <h3>Code Editor (C++)</h3>
         <div class="controls">
             <button id="btn-save" class="btn-save">💾 SIMPAN KE FIRESTORE</button>
             <button id="btn-load" class="btn-load">📂 MUAT DARI FIRESTORE</button>
         </div>
-        <textarea id="hex-input" placeholder="Ketik kode di sini...">
-:100000000C945A000C946E000C946E000C946E00B0
-:100010000C946E000C946E000C946E000C946E00A0
-:100020000C946E000C946E000C946E000C946E0090
-:100030000C946E000C946E000C946E000C946E0080
-:100040000C946E000C946E000C946E000C946E0070
-:100050000C946E000C946E000C946E000C946E0060
-:100060000C946E000C946E000C946E000C946E0050
-:100070000C946E000C946E00E5CF0000000000004C
-:10008000000000000000000000000000010000005E
-:100090000000000000000000000000000000000056
-:1000A000000000000000000025B000000000000039
-:0200B000F89408
-:0400B200000000004A
-:1000C0000FEF24B7F89404E040B902C02096F0CD
-:1000D00001C02196F4B7F894E2CF80E085BB80E1C9
-:1000E00085BB0FC02197E1F7F894EFCF0895FA
-:00000001FF</textarea>
+        
+        <div id="editor-container"></div>
     </div>
 
     <div class="panel">
         <h3>Simulasi Hardware</h3>
         <div class="controls">
-            <button id="btn-action">▶ JALANKAN SIMULASI</button>
+            <button id="btn-action">▶ KOMPILASI & JALANKAN</button>
         </div>
         <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column;">
             <wokwi-arduino-uno id="uno-board"></wokwi-arduino-uno>
@@ -61,16 +49,9 @@
     </div>
 
     <script type="module">
-        // IMPORT FIREBASE 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-        
-        // IMPORT SIMULATOR (Menggunakan Native avr8js Components)
-        import { CPU, AVRIOPort, portBConfig } from 'https://esm.run/avr8js';
 
-        // ==========================================
-        // KONFIGURASI FIRESTORE
-        // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyBmZR9PeOQIdHBwV5USTxU3_41KfIbw9tQ",
             authDomain: "kwtabiyoso.firebaseapp.com",
@@ -85,62 +66,75 @@
         const db = getFirestore(app);
         const docRef = doc(db, "projects", "sim_user_01"); 
 
-        // ELEMEN DOM
-        const hexInput = document.getElementById('hex-input');
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
         const btnAction = document.getElementById('btn-action');
-        const unoBoard = document.getElementById('uno-board');
-        const statusVal = document.getElementById('status-val');
-
-        let runnerInterval = null;
 
         // ==========================================
-        // FUNGSI PEMBACA FILE HEX MANUAL
+        // INISIALISASI MONACO EDITOR
         // ==========================================
-        function parseHex(hex) {
-            const data = new Uint8Array(32768);
-            const lines = hex.split('\n');
-            for (const line of lines) {
-                if (line.startsWith(':')) {
-                    const length = parseInt(line.substring(1, 3), 16);
-                    const address = parseInt(line.substring(3, 7), 16);
-                    const recordType = parseInt(line.substring(7, 9), 16);
-                    if (recordType === 0) { // Hanya proses record data
-                        for (let i = 0; i < length; i++) {
-                            data[address + i] = parseInt(line.substring(9 + i * 2, 11), 16);
-                        }
-                    }
-                }
-            }
-            return data;
-        }
+        let monacoEditorInstance = null;
+        
+        // Template bawaan Arduino
+        const defaultCode = `void setup() {
+  // Letakkan kode setup di sini, berjalan sekali:
+  pinMode(13, OUTPUT);
+}
+
+void loop() {
+  // Letakkan kode utama di sini, berjalan berulang-ulang:
+  digitalWrite(13, HIGH);
+  delay(1000);
+  digitalWrite(13, LOW);
+  delay(1000);
+}`;
+
+        // Konfigurasi jalur CDN Monaco
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            monacoEditorInstance = monaco.editor.create(document.getElementById('editor-container'), {
+                value: defaultCode,
+                language: 'cpp', // Set bahasa ke C++ untuk syntax highlighting & auto-complete
+                theme: 'vs-dark', // Tema gelap ala VS Code
+                automaticLayout: true,
+                minimap: { enabled: false }, // Mematikan peta kode di sebelah kanan agar tidak sempit
+                fontSize: 14
+            });
+        });
 
         // ==========================================
-        // LOGIKA FIRESTORE
+        // LOGIKA FIRESTORE (Disinkronkan dengan Monaco)
         // ==========================================
         btnSave.addEventListener('click', async () => {
+            if (!monacoEditorInstance) return;
             try {
                 btnSave.innerText = "⏳ Menyimpan...";
+                
+                // Mengambil nilai C++ dari Monaco Editor
+                const currentCode = monacoEditorInstance.getValue(); 
+                
                 await setDoc(docRef, {
-                    code: hexInput.value,
+                    code: currentCode,
                     updatedAt: new Date()
                 });
-                alert("Kode berhasil disimpan ke Firestore!");
+                alert("Kode C++ berhasil disimpan ke Firestore!");
             } catch (e) {
-                alert("Gagal menyimpan. Pastikan Aturan Keamanan Database Firestore (Rules) sudah diset 'allow read, write: if true;'. Error: " + e.message);
+                alert("Gagal menyimpan: " + e.message);
             } finally {
                 btnSave.innerText = "💾 SIMPAN KE FIRESTORE";
             }
         });
 
         btnLoad.addEventListener('click', async () => {
+            if (!monacoEditorInstance) return;
             try {
                 btnLoad.innerText = "⏳ Memuat...";
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                    hexInput.value = docSnap.data().code;
-                    alert("Kode berhasil dimuat dari Firestore!");
+                    
+                    // Memasukkan nilai C++ dari Firestore ke Monaco Editor
+                    monacoEditorInstance.setValue(docSnap.data().code); 
+                    alert("Kode C++ berhasil dimuat dari Firestore!");
                 } else {
                     alert("Belum ada data tersimpan di Firestore.");
                 }
@@ -152,60 +146,13 @@
         });
 
         // ==========================================
-        // LOGIKA SIMULATOR MESIN CPU
+        // LOGIKA TOMBOL JALANKAN
         // ==========================================
         btnAction.addEventListener('click', () => {
-            if (runnerInterval) {
-                // Matikan looping simulasi
-                clearInterval(runnerInterval);
-                runnerInterval = null;
-                btnAction.innerText = "▶ JALANKAN SIMULASI";
-                btnAction.classList.remove('btn-stop');
-                
-                unoBoard.led13 = false;
-                statusVal.innerText = "LOW";
-                return;
-            }
-
-            try {
-                // 1. Siapkan Memori dan Masukkan Data Hex
-                const program = new Uint16Array(32768);
-                const programBytes = new Uint8Array(program.buffer);
-                const hexData = hexInput.value.trim();
-                const hexBytes = parseHex(hexData);
-                programBytes.set(hexBytes);
-                
-                // 2. Inisialisasi CPU
-                const cpu = new CPU(program);
-                const portB = new AVRIOPort(cpu, portBConfig);
-                
-                // 3. Tangkap Perubahan pada Pin 13 (Port B, Bit 5)
-                portB.addListener((value) => {
-                    const pinState = (value & 0x20) !== 0; 
-                    if (pinState) {
-                        unoBoard.led13 = true;
-                        statusVal.innerText = "HIGH";
-                    } else {
-                        unoBoard.led13 = false;
-                        statusVal.innerText = "LOW";
-                    }
-                });
-
-                // 4. Jalankan Loop Mesin (~60 Frames per second)
-                runnerInterval = setInterval(() => {
-                    const cyclesToRun = cpu.cycles + 16000000 / 60; // Simulasi kecepatan 16MHz
-                    while (cpu.cycles < cyclesToRun) {
-                        cpu.tick();
-                    }
-                }, 16);
-
-                btnAction.innerText = "⏹ HENTIKAN SIMULASI";
-                btnAction.classList.add('btn-stop');
-
-            } catch (error) {
-                alert("Gagal menjalankan. Pastikan kode HEX valid!\n" + error.message);
-            }
+            // Peringatan karena kita sekarang menggunakan C++, bukan HEX
+            alert("Tampilan UI sudah sempurna! Namun, karena kita mengetik dalam bahasa C++, kode ini harus dikompilasi menjadi .hex terlebih dahulu sebelum bisa masuk ke papan Arduino.\n\nLangkah selanjutnya adalah memasang Compiler WebAssembly (WASM).");
         });
+
     </script>
 </body>
 </html>
