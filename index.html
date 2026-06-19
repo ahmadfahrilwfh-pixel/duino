@@ -3,23 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Embedded Simulator - Monaco Editor Edition</title>
+    <title>Embedded Simulator - Asset & Workbench</title>
     <style>
         :root { --bg: #1e1e2e; --panel: #252538; --text: #cdd6f4; --accent: #74c7ec; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); display: flex; gap: 20px; height: 90vh; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); display: flex; gap: 20px; height: 90vh; overflow: hidden; }
         .panel { flex: 1; background: var(--panel); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; border: 1px solid #313244; }
         
-        /* Container untuk Monaco Editor */
         #editor-container { flex: 1; border-radius: 6px; overflow: hidden; border: 1px solid #313244; margin-bottom: 15px; }
         
         .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        button { background: var(--accent); color: #11111b; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button { background: var(--accent); color: #11111b; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 12px; }
         button:hover { opacity: 0.8; }
         .btn-save { background-color: #a6e3a1; }
         .btn-load { background-color: #f9e2af; }
-        .btn-stop { background-color: #f38ba8; }
+        .btn-add { background-color: #cba6f7; color: #11111b; }
         
-        #uno-board { margin: auto; }
+        /* Area Meja Kerja (Workbench) */
+        #workbench {
+            flex: 1;
+            background-color: #181825;
+            border: 2px dashed #45475a;
+            border-radius: 8px;
+            position: relative; /* Penting untuk drag & drop */
+            overflow: hidden;
+        }
+
+        /* Class untuk komponen yang bisa digeser */
+        .draggable {
+            position: absolute;
+            cursor: grab;
+            user-select: none; /* Mencegah teks terblokir saat menggeser */
+        }
+        .draggable:active {
+            cursor: grabbing;
+        }
+
+        /* Mengatur ukuran standar komponen Wokwi */
+        wokwi-led { width: 30px; height: 30px; }
+        wokwi-resistor { width: 40px; }
+        wokwi-pushbutton { width: 30px; height: 30px; }
+        
     </style>
     
     <script type="module" src="https://esm.run/@wokwi/elements"></script>
@@ -30,21 +53,25 @@
     <div class="panel">
         <h3>Code Editor (C++)</h3>
         <div class="controls">
-            <button id="btn-save" class="btn-save">💾 SIMPAN KE FIRESTORE</button>
-            <button id="btn-load" class="btn-load">📂 MUAT DARI FIRESTORE</button>
+            <button id="btn-save" class="btn-save">💾 SIMPAN</button>
+            <button id="btn-load" class="btn-load">📂 MUAT</button>
+            <button id="btn-action">▶ KOMPILASI</button>
         </div>
-        
         <div id="editor-container"></div>
     </div>
 
     <div class="panel">
-        <h3>Simulasi Hardware</h3>
-        <div class="controls">
-            <button id="btn-action">▶ KOMPILASI & JALANKAN</button>
+        <h3>Meja Kerja Hardware</h3>
+        
+        <div class="controls" style="background: #1e1e2e; padding: 10px; border-radius: 6px;">
+            <span style="font-size: 14px; margin-right: 10px; align-self: center;">Tambahkan Aset: </span>
+            <button class="btn-add" onclick="addComponent('wokwi-led')">+ LED Merah</button>
+            <button class="btn-add" onclick="addComponent('wokwi-resistor')">+ Resistor</button>
+            <button class="btn-add" onclick="addComponent('wokwi-pushbutton')">+ Push Button</button>
         </div>
-        <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column;">
-            <wokwi-arduino-uno id="uno-board"></wokwi-arduino-uno>
-            <p style="margin-top:20px;">Status PIN 13: <strong id="status-val">LOW</strong></p>
+
+        <div id="workbench">
+            <wokwi-arduino-uno id="uno-board" class="draggable" style="top: 50px; left: 50px;"></wokwi-arduino-uno>
         </div>
     </div>
 
@@ -74,83 +101,110 @@
         // INISIALISASI MONACO EDITOR
         // ==========================================
         let monacoEditorInstance = null;
-        
-        // Template bawaan Arduino
-        const defaultCode = `void setup() {
-  // Letakkan kode setup di sini, berjalan sekali:
-  pinMode(13, OUTPUT);
-}
+        const defaultCode = `void setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(1000);\n  digitalWrite(13, LOW);\n  delay(1000);\n}`;
 
-void loop() {
-  // Letakkan kode utama di sini, berjalan berulang-ulang:
-  digitalWrite(13, HIGH);
-  delay(1000);
-  digitalWrite(13, LOW);
-  delay(1000);
-}`;
-
-        // Konfigurasi jalur CDN Monaco
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
         require(['vs/editor/editor.main'], function() {
             monacoEditorInstance = monaco.editor.create(document.getElementById('editor-container'), {
                 value: defaultCode,
-                language: 'cpp', // Set bahasa ke C++ untuk syntax highlighting & auto-complete
-                theme: 'vs-dark', // Tema gelap ala VS Code
+                language: 'cpp',
+                theme: 'vs-dark',
                 automaticLayout: true,
-                minimap: { enabled: false }, // Mematikan peta kode di sebelah kanan agar tidak sempit
+                minimap: { enabled: false },
                 fontSize: 14
             });
         });
 
         // ==========================================
-        // LOGIKA FIRESTORE (Disinkronkan dengan Monaco)
+        // SISTEM DRAG & DROP KOMPONEN
+        // ==========================================
+        const workbench = document.getElementById('workbench');
+
+        // Fungsi utama untuk menambahkan komponen ke meja kerja
+        window.addComponent = function(type) {
+            const newElement = document.createElement(type);
+            newElement.classList.add('draggable');
+            
+            // Posisi awal saat komponen dipanggil (di tengah atas)
+            newElement.style.top = '20px';
+            newElement.style.left = '200px';
+
+            // Konfigurasi khusus untuk elemen tertentu
+            if(type === 'wokwi-led') {
+                newElement.setAttribute('color', 'red');
+            }
+
+            workbench.appendChild(newElement);
+            makeElementDraggable(newElement);
+        };
+
+        // Fungsi logika pergeseran mouse
+        function makeElementDraggable(elmnt) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            elmnt.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+                
+                // Bawa elemen yang sedang di-drag ke lapisan paling depan
+                const allDraggables = document.querySelectorAll('.draggable');
+                allDraggables.forEach(el => el.style.zIndex = "1");
+                elmnt.style.zIndex = "10";
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                // Kalkulasi pergeseran kursor
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                // Tetapkan posisi baru
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                // Hentikan pergeseran saat klik mouse dilepas
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
+        // Aktifkan drag untuk Arduino bawaan saat halaman pertama dimuat
+        makeElementDraggable(document.getElementById('uno-board'));
+
+
+        // ==========================================
+        // LOGIKA FIRESTORE
         // ==========================================
         btnSave.addEventListener('click', async () => {
             if (!monacoEditorInstance) return;
             try {
-                btnSave.innerText = "⏳ Menyimpan...";
-                
-                // Mengambil nilai C++ dari Monaco Editor
-                const currentCode = monacoEditorInstance.getValue(); 
-                
-                await setDoc(docRef, {
-                    code: currentCode,
-                    updatedAt: new Date()
-                });
-                alert("Kode C++ berhasil disimpan ke Firestore!");
-            } catch (e) {
-                alert("Gagal menyimpan: " + e.message);
-            } finally {
-                btnSave.innerText = "💾 SIMPAN KE FIRESTORE";
-            }
+                btnSave.innerText = "⏳...";
+                await setDoc(docRef, { code: monacoEditorInstance.getValue(), updatedAt: new Date() });
+                alert("Tersimpan!");
+            } catch (e) { alert("Gagal: " + e.message); } 
+            finally { btnSave.innerText = "💾 SIMPAN"; }
         });
 
         btnLoad.addEventListener('click', async () => {
             if (!monacoEditorInstance) return;
             try {
-                btnLoad.innerText = "⏳ Memuat...";
+                btnLoad.innerText = "⏳...";
                 const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    
-                    // Memasukkan nilai C++ dari Firestore ke Monaco Editor
-                    monacoEditorInstance.setValue(docSnap.data().code); 
-                    alert("Kode C++ berhasil dimuat dari Firestore!");
-                } else {
-                    alert("Belum ada data tersimpan di Firestore.");
-                }
-            } catch (e) {
-                alert("Gagal memuat: " + e.message);
-            } finally {
-                btnLoad.innerText = "📂 MUAT DARI FIRESTORE";
-            }
+                if (docSnap.exists()) { monacoEditorInstance.setValue(docSnap.data().code); } 
+                else { alert("Belum ada data."); }
+            } catch (e) { alert("Gagal: " + e.message); } 
+            finally { btnLoad.innerText = "📂 MUAT"; }
         });
 
-        // ==========================================
-        // LOGIKA TOMBOL JALANKAN
-        // ==========================================
         btnAction.addEventListener('click', () => {
-            // Peringatan karena kita sekarang menggunakan C++, bukan HEX
-            alert("Tampilan UI sudah sempurna! Namun, karena kita mengetik dalam bahasa C++, kode ini harus dikompilasi menjadi .hex terlebih dahulu sebelum bisa masuk ke papan Arduino.\n\nLangkah selanjutnya adalah memasang Compiler WebAssembly (WASM).");
+            alert("Sistem UI Meja Kerja selesai! Langkah berikutnya adalah Kompilator WASM.");
         });
 
     </script>
