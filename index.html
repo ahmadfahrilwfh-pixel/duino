@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embedded Simulator - Firestore Edition</title>
+    <style>
+        :root { --bg: #1e1e2e; --panel: #252538; --text: #cdd6f4; --accent: #74c7ec; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); display: flex; gap: 20px; height: 90vh; }
+        .panel { flex: 1; background: var(--panel); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; border: 1px solid #313244; }
+        textarea { flex: 1; background: #181825; color: #a6e3a1; border: 1px solid #313244; padding: 15px; font-family: monospace; border-radius: 6px; resize: none; outline: none; margin-bottom: 15px; }
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        button { background: var(--accent); color: #11111b; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        button:hover { opacity: 0.8; }
+        .btn-save { background-color: #a6e3a1; }
+        .btn-load { background-color: #f9e2af; }
+        .btn-stop { background-color: #f38ba8; }
+        #virtual-led { width: 60px; height: 60px; border-radius: 50%; background: #45475a; margin: auto; transition: 0.1s; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        #virtual-led.active { background: #f38ba8; box-shadow: 0 0 30px #f38ba8; }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <h3>Kode Hex & Database</h3>
+        <div class="controls">
+            <button id="btn-save" class="btn-save">💾 SIMPAN KE FIRESTORE</button>
+            <button id="btn-load" class="btn-load">📂 MUAT DARI FIRESTORE</button>
+        </div>
+        <textarea id="hex-input" placeholder="Ketik kode di sini...">
+:100000000C945A000C946E000C946E000C946E00B0
+:100010000C946E000C946E000C946E000C946E00A0
+:100020000C946E000C946E000C946E000C946E0090
+:100030000C946E000C946E000C946E000C946E0080
+:100040000C946E000C946E000C946E000C946E0070
+:100050000C946E000C946E000C946E000C946E0060
+:100060000C946E000C946E000C946E000C946E0050
+:100070000C946E000C946E00E5CF0000000000004C
+:10008000000000000000000000000000010000005E
+:100090000000000000000000000000000000000056
+:1000A000000000000000000025B000000000000039
+:0200B000F89408
+:0400B200000000004A
+:1000C0000FEF24B7F89404E040B902C02096F0CD
+:1000D00001C02196F4B7F894E2CF80E085BB80E1C9
+:1000E00085BB0FC02197E1F7F894EFCF0895FA
+:00000001FF</textarea>
+    </div>
+
+    <div class="panel">
+        <h3>Simulasi Hardware</h3>
+        <div class="controls">
+            <button id="btn-action">▶ JALANKAN SIMULASI</button>
+        </div>
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+            <div id="virtual-led"></div>
+            <p style="margin-top:20px;">Status PIN 13: <strong id="status-val">LOW</strong></p>
+        </div>
+    </div>
+
+    <script type="module">
+        // 1. IMPORT FIREBASE (Menggunakan CDN v10 Modular untuk Web Statis)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        
+        // 2. IMPORT SIMULATOR (Pastikan file avr8js.js sudah didownload ke folder libs/)
+        import { AVRRunner, hxToBin } from './libs/avr8js.js';
+
+        // ==========================================
+        // KONFIGURASI FIRESTORE (GANTI DENGAN MILIKMU)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "API_KEY_KAMU",
+            authDomain: "project-id.firebaseapp.com",
+            projectId: "project-id",
+            storageBucket: "project-id.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcde"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const docRef = doc(db, "projects", "sim_user_01"); // Nama koleksi & ID dokumen
+
+        // Elemen DOM
+        const hexInput = document.getElementById('hex-input');
+        const btnSave = document.getElementById('btn-save');
+        const btnLoad = document.getElementById('btn-load');
+        const btnAction = document.getElementById('btn-action');
+        const led = document.getElementById('virtual-led');
+        const statusVal = document.getElementById('status-val');
+
+        let runner = null;
+
+        // ==========================================
+        // LOGIKA FIRESTORE (SIMPAN & MUAT)
+        // ==========================================
+        btnSave.addEventListener('click', async () => {
+            try {
+                btnSave.innerText = "⏳ Menyimpan...";
+                await setDoc(docRef, {
+                    code: hexInput.value,
+                    updatedAt: new Date()
+                });
+                alert("Kode berhasil disimpan ke Firestore!");
+            } catch (e) {
+                alert("Gagal menyimpan: " + e.message);
+            } finally {
+                btnSave.innerText = "💾 SIMPAN KE FIRESTORE";
+            }
+        });
+
+        btnLoad.addEventListener('click', async () => {
+            try {
+                btnLoad.innerText = "⏳ Memuat...";
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    hexInput.value = docSnap.data().code;
+                    alert("Kode berhasil dimuat dari Firestore!");
+                } else {
+                    alert("Belum ada data tersimpan di Firestore.");
+                }
+            } catch (e) {
+                alert("Gagal memuat: " + e.message);
+            } finally {
+                btnLoad.innerText = "📂 MUAT DARI FIRESTORE";
+            }
+        });
+
+        // ==========================================
+        // LOGIKA SIMULATOR (AVR8JS)
+        // ==========================================
+        btnAction.addEventListener('click', () => {
+            if (runner) {
+                runner.stop();
+                runner = null;
+                btnAction.innerText = "▶ JALANKAN SIMULASI";
+                btnAction.classList.remove('btn-stop');
+                led.classList.remove('active');
+                statusVal.innerText = "LOW";
+                return;
+            }
+
+            try {
+                const hexData = hexInput.value.trim();
+                const binProgram = hxToBin(hexData);
+                
+                runner = new AVRRunner(binProgram);
+                
+                runner.portB.addListener((value) => {
+                    const pinState = (value & 0x20) !== 0; 
+                    if (pinState) {
+                        led.classList.add('active');
+                        statusVal.innerText = "HIGH";
+                    } else {
+                        led.classList.remove('active');
+                        statusVal.innerText = "LOW";
+                    }
+                });
+
+                runner.start();
+                btnAction.innerText = "⏹ HENTIKAN SIMULASI";
+                btnAction.classList.add('btn-stop');
+
+            } catch (error) {
+                alert("Gagal menjalankan. Pastikan kode HEX valid!\n" + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
