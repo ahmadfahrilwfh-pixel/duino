@@ -32,15 +32,18 @@
         /* Tombol Mengambang (Floating Action Buttons) */
         .fab-container { position: absolute; top: 15px; right: 15px; display: flex; flex-direction: column; gap: 10px; z-index: 50;}
         .btn-floating { border-radius: 50%; width: 45px; height: 45px; font-size: 20px; padding: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #cba6f7; display:flex; justify-content:center; align-items:center; border: none; cursor:pointer;}
-        .btn-floating.active { background: #a6e3a1; box-shadow: 0 0 15px #a6e3a1; } /* Mode Kabel Aktif */
+        .btn-floating.active { background: #a6e3a1; box-shadow: 0 0 15px #a6e3a1; }
 
         .draggable { position: absolute; cursor: grab; user-select: none; z-index: 10;}
         .draggable:active { cursor: grabbing; }
 
         /* LAPISAN KABEL (SVG) */
         #wiring-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
-        .wire { stroke: #a6e3a1; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5)); transition: stroke 0.2s; }
+        .wire { stroke: #89b4fa; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5)); transition: stroke 0.2s, filter 0.2s; }
         .wire.drawing { stroke: #f9e2af; stroke-dasharray: 5,5; }
+        
+        /* State Kabel Aktif (HIGH) */
+        .wire.high-voltage { stroke: #f38ba8 !important; filter: drop-shadow(0px 0px 8px #f38ba8) !important; }
 
         /* Modal Menu Asset */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 200; justify-content: center; align-items: center; }
@@ -173,7 +176,17 @@
         }
 
         // ==========================================
-        // SISTEM WIRING (KABEL) & DRAG DROP
+        // STATE MANAGEMENT (THE BRAIN - NETLIST)
+        // ==========================================
+        const simulationState = {
+            components: {},
+            netlist: [], // Kumpulan node (jalur listrik)
+            wires: [] // { id, nodeIndex, svgElement, fromComp, toComp }
+        };
+        let wireCounter = 0;
+
+        // ==========================================
+        // SISTEM WIRING (KABEL), SNAP-TO-PIN & DRAG DROP
         // ==========================================
         const workbench = document.getElementById('workbench');
         const wiringLayer = document.getElementById('wiring-layer');
@@ -182,15 +195,13 @@
         let isWiringMode = false;
         let startComponent = null;
         let activeSVGLine = null;
-        let allConnections = []; // Menyimpan data {dari_komponen, ke_komponen, elemen_garis_svg}
+        const SNAP_RADIUS = 30; // Radius magnetik untuk snap-to-pin
 
-        // Toggle Mode Kabel
         btnWireMode.addEventListener('click', () => {
             isWiringMode = !isWiringMode;
             btnWireMode.classList.toggle('active', isWiringMode);
             workbench.style.cursor = isWiringMode ? 'crosshair' : 'default';
             
-            // Batalkan kabel yang sedang ditarik jika mode dimatikan
             if (!isWiringMode && activeSVGLine) {
                 wiringLayer.removeChild(activeSVGLine);
                 activeSVGLine = null;
@@ -199,23 +210,34 @@
             addLog(isWiringMode ? "Mode Kabel Aktif: Klik komponen sumber lalu klik komponen tujuan." : "Mode Kabel Non-aktif.");
         });
 
-        // Melacak mouse untuk menggambar kabel secara real-time
+        // Snap Logic & Mouse Move
         workbench.addEventListener('mousemove', (e) => {
             if (isWiringMode && activeSVGLine && startComponent) {
                 const rect = workbench.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
+                let mouseX = e.clientX - rect.left;
+                let mouseY = e.clientY - rect.top;
+
+                // Physics/Collision: Cek apakah mouse dekat dengan komponen lain (Snap-to-Component Center untuk purwarupa ini)
+                document.querySelectorAll('.draggable').forEach(comp => {
+                    if (comp !== startComponent) {
+                        const center = getComponentCenter(comp);
+                        const distance = Math.sqrt(Math.pow(mouseX - center.x, 2) + Math.pow(mouseY - center.y, 2));
+                        if (distance < SNAP_RADIUS) {
+                            mouseX = center.x;
+                            mouseY = center.y;
+                        }
+                    }
+                });
+
                 activeSVGLine.setAttribute('x2', mouseX);
                 activeSVGLine.setAttribute('y2', mouseY);
             }
         });
 
-        // Menambahkan Event Listener ke komponen untuk Wiring
         function attachComponentEvents(elmnt) {
-            // Event MOUSE DOWN (Klik)
             elmnt.addEventListener('mousedown', (e) => {
                 if (isWiringMode) {
-                    e.stopPropagation(); // Mencegah drag-drop aktif saat wiring
+                    e.stopPropagation(); 
                     
                     if (!startComponent) {
                         // Mulai menarik kabel
@@ -231,31 +253,40 @@
                         
                         wiringLayer.appendChild(activeSVGLine);
                     } else if (startComponent !== elmnt) {
-                        // Selesai menarik kabel (Konek ke komponen tujuan)
+                        // Selesai menarik kabel
                         activeSVGLine.classList.remove('drawing');
                         const center = getComponentCenter(elmnt);
                         activeSVGLine.setAttribute('x2', center.x);
                         activeSVGLine.setAttribute('y2', center.y);
                         
-                        // Simpan ke database koneksi lokal
-                        allConnections.push({
-                            from: startComponent,
-                            to: elmnt,
-                            line: activeSVGLine
+                        // Daftarkan ke Netlist State
+                        const wireId = `wire-${wireCounter++}`;
+                        let nodeIndex = 0; // Sederhananya, asumsikan semua koneksi ini masuk ke Node 0 (VCC/Pin13) untuk purwarupa
+                        
+                        simulationState.wires.push({
+                            id: wireId,
+                            nodeIndex: nodeIndex,
+                            svgElement: activeSVGLine,
+                            fromComp: startComponent,
+                            toComp: elmnt
                         });
                         
-                        addLog("Kabel terhubung!");
+                        // Menambahkan representasi node ke netlist
+                        simulationState.netlist.push([
+                            { compId: startComponent.id || startComponent.tagName },
+                            { compId: elmnt.id || elmnt.tagName }
+                        ]);
+                        
+                        addLog(`Kabel terhubung: ${startComponent.tagName} -> ${elmnt.tagName}`);
                         startComponent = null;
                         activeSVGLine = null;
                     }
                 } else {
-                    // Jika BUKAN mode wiring, lakukan drag & drop biasa
                     dragMouseDown(e, elmnt);
                 }
             });
         }
 
-        // Kalkulasi Titik Tengah Komponen
         function getComponentCenter(elmnt) {
             return {
                 x: elmnt.offsetLeft + (elmnt.offsetWidth / 2),
@@ -263,19 +294,29 @@
             };
         }
 
-        // Update visual kabel saat komponen digeser
         function updateConnectedWires() {
-            allConnections.forEach(conn => {
-                const centerFrom = getComponentCenter(conn.from);
-                const centerTo = getComponentCenter(conn.to);
-                conn.line.setAttribute('x1', centerFrom.x);
-                conn.line.setAttribute('y1', centerFrom.y);
-                conn.line.setAttribute('x2', centerTo.x);
-                conn.line.setAttribute('y2', centerTo.y);
+            simulationState.wires.forEach(conn => {
+                const centerFrom = getComponentCenter(conn.fromComp);
+                const centerTo = getComponentCenter(conn.toComp);
+                conn.svgElement.setAttribute('x1', centerFrom.x);
+                conn.svgElement.setAttribute('y1', centerFrom.y);
+                conn.svgElement.setAttribute('x2', centerTo.x);
+                conn.svgElement.setAttribute('y2', centerTo.y);
             });
         }
 
-        // Logika Drag & Drop
+        // Logic Visual Voltage State
+        function updateWireVisuals(nodeIndex, isHigh) {
+            const wiresToUpdate = simulationState.wires.filter(w => w.nodeIndex === nodeIndex);
+            wiresToUpdate.forEach(wireObj => {
+                if (isHigh) {
+                    wireObj.svgElement.classList.add('high-voltage');
+                } else {
+                    wireObj.svgElement.classList.remove('high-voltage');
+                }
+            });
+        }
+
         function dragMouseDown(e, elmnt) {
             e.preventDefault();
             let pos3 = e.clientX, pos4 = e.clientY;
@@ -289,21 +330,22 @@
                 elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
                 elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
                 
-                // MENGUPDATE KABEL SECARA REAL-TIME SAAT DIGESER
                 updateConnectedWires();
             };
             document.querySelectorAll('.draggable').forEach(el => el.style.zIndex = "10");
-            elmnt.style.zIndex = "20"; // Bawa ke depan
+            elmnt.style.zIndex = "20"; 
         }
 
         // Modal Component logic
         const modal = document.getElementById('asset-modal');
         document.getElementById('btn-add-asset').onclick = () => modal.style.display = 'flex';
         document.getElementById('close-modal').onclick = () => modal.style.display = 'none';
+        let compCounter = 0;
 
         window.addComponent = function(type, attributes = {}) {
             const newElement = document.createElement(type);
             newElement.classList.add('draggable');
+            newElement.id = `comp-${compCounter++}`;
             newElement.style.top = '100px';
             newElement.style.left = '100px';
             
@@ -312,14 +354,12 @@
             }
             
             workbench.appendChild(newElement);
-            attachComponentEvents(newElement); // Tempelkan sensor kabel & drag
+            attachComponentEvents(newElement); 
             modal.style.display = 'none';
             addLog(`Komponen ditambahkan: ${type}`);
         };
 
-        // Pasang event ke Arduino bawaan saat pertama kali dimuat
         attachComponentEvents(document.getElementById('uno-board'));
-
 
         // ==========================================
         // FIRESTORE SIMPAN / MUAT
@@ -328,10 +368,17 @@
             if (!monacoEditorInstance) return;
             addLog("Menyimpan ke Firestore...");
             try {
-                await setDoc(docRef, { code: monacoEditorInstance.getValue(), updatedAt: new Date() });
+                // Konsep: Simpan kode dan posisi komponen serta Netlist dalam satu JSON
+                const stateToSave = {
+                    code: monacoEditorInstance.getValue(),
+                    updatedAt: new Date()
+                    // Di sini Anda bisa menambahkan serialize dari simulationState untuk menyimpan posisi
+                };
+                await setDoc(docRef, stateToSave);
                 addLog("Data berhasil disimpan.");
             } catch (e) { addLog(e.message, true); } 
         });
+        
         document.getElementById('btn-load').addEventListener('click', async () => {
             if (!monacoEditorInstance) return;
             addLog("Memuat dari Firestore...");
@@ -341,7 +388,6 @@
                 else { addLog("Tidak ada data.", true); }
             } catch (e) { addLog(e.message, true); } 
         });
-
 
         // ==========================================
         // KOMPILASI C++ KE HEX & JALANKAN AVR8JS
@@ -374,6 +420,7 @@
                 clearInterval(runnerInterval);
                 runnerInterval = null;
                 document.getElementById('uno-board').led13 = false;
+                updateWireVisuals(0, false); // Matikan visual kabel saat stop
                 addLog("Simulasi dihentikan.");
                 btnCompile.innerText = "▶ KOMPILASI & JALANKAN";
                 btnCompile.style.backgroundColor = "#f38ba8";
@@ -383,11 +430,21 @@
             const code = monacoEditorInstance.getValue();
             addLog("Mengirim C++ ke Compiler...");
             
+            // Konsep Library Manager: Payload mendukung multiple files
+            const buildPayload = { 
+                board: 'uno',
+                sketch: 'sketch.ino',
+                files: {
+                    "sketch.ino": code
+                    // "Library.h": "...", "Library.cpp": "..." -> Bisa ditambahkan di sini saat fetch github raw selesai
+                }
+            };
+            
             try {
                 const response = await fetch('https://hexi.wokwi.com/build', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sketch: code, board: 'uno' })
+                    body: JSON.stringify(buildPayload)
                 });
                 
                 const result = await response.json();
@@ -403,8 +460,20 @@
                 const cpu = new CPU(program);
                 const portB = new AVRIOPort(cpu, portBConfig);
                 
+                // Menerima Sinyal dari avr8js (The Brain & Visual Voltage)
                 portB.addListener((value) => {
-                    document.getElementById('uno-board').led13 = (value & 0x20) !== 0;
+                    const isHigh = (value & 0x20) !== 0; // Cek status bit Pin 13
+                    document.getElementById('uno-board').led13 = isHigh;
+                    
+                    // Update state semua komponen di Netlist & Visualisasi kabel
+                    updateWireVisuals(0, isHigh); // Asumsi koneksi di Node 0
+                    
+                    // Menyalakan LED eksternal (jika di-wiring)
+                    simulationState.wires.forEach(wire => {
+                        if(wire.toComp.tagName.toLowerCase() === 'wokwi-led') {
+                            wire.toComp.value = isHigh;
+                        }
+                    });
                 });
 
                 runnerInterval = setInterval(() => {
