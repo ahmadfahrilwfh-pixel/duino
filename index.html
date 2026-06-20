@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Embedded Simulator - Drag & Drop Wiring</title>
+    <title>Embedded Simulator - Wokwi Clone</title>
     <style>
         :root { --bg: #1e1e2e; --panel: #252538; --text: #cdd6f4; --accent: #74c7ec; --log-bg: #11111b; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -14,33 +14,37 @@
         .view-toggles button.active { background: var(--accent); color: #11111b; font-weight: bold;}
         
         .main-container { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
-        .panel { background: var(--panel); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; border: 1px solid #313244; flex: 1; transition: 0.3s; }
+        .panel { background: var(--panel); border-radius: 8px; display: flex; flex-direction: column; border: 1px solid #313244; flex: 1; transition: 0.3s; overflow: hidden; }
         
+        /* Code Panel Specifics */
+        #panel-code { padding: 15px; }
         #editor-container { flex: 3; border-radius: 6px; overflow: hidden; border: 1px solid #313244; margin-bottom: 10px; }
         #log-container { flex: 1; background: var(--log-bg); border-radius: 6px; border: 1px solid #313244; padding: 10px; font-family: monospace; font-size: 12px; color: #a6e3a1; overflow-y: auto; white-space: pre-wrap; display: flex; flex-direction: column;}
         
         .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        button { background: var(--accent); color: #11111b; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 12px; }
-        button:hover { opacity: 0.8; }
-        .btn-save { background-color: #a6e3a1; }
-        .btn-load { background-color: #f9e2af; }
-        .btn-compile { background-color: #f38ba8; }
+        .btn-top { background: #313244; color: var(--text); border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 12px; }
+        .btn-top:hover { background: #45475a; }
         
-        /* Workbench & Asset Button */
-        #workbench { flex: 1; background-color: #181825; border: 2px dashed #45475a; border-radius: 8px; position: relative; overflow: hidden; cursor: default; }
+        /* Simulation Panel Specifics (Like Video) */
+        .sim-header { background: #181825; padding: 8px 15px; display: flex; align-items: center; border-bottom: 1px solid #313244; gap: 10px; }
+        .sim-title { font-weight: bold; margin-right: 20px; }
+        .btn-play { background: #10b981; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; transition: 0.2s;}
+        .btn-play:hover { background: #059669; transform: scale(1.05); }
+        .btn-play.running { background: #ef4444; }
+        .btn-add { background: #3b82f6; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; transition: 0.2s; }
+        .btn-add:hover { background: #2563eb; transform: scale(1.05); }
+        .btn-more { background: #313244; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; font-weight:bold; }
         
-        .fab-container { position: absolute; top: 15px; right: 15px; display: flex; flex-direction: column; gap: 10px; z-index: 50;}
-        .btn-floating { border-radius: 50%; width: 45px; height: 45px; font-size: 20px; padding: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #cba6f7; display:flex; justify-content:center; align-items:center; border: none; cursor:pointer;}
-        .btn-floating.active { background: #a6e3a1; box-shadow: 0 0 15px #a6e3a1; }
+        #workbench { flex: 1; background-color: #1e1e2e; position: relative; overflow: hidden; cursor: default; }
 
         .draggable { position: absolute; cursor: grab; user-select: none; z-index: 10;}
         .draggable:active { cursor: grabbing; }
 
         /* Wiring Layer */
         #wiring-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
-        .wire { stroke: #89b4fa; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5)); transition: stroke 0.2s, filter 0.2s; }
-        .wire.drawing { stroke: #f9e2af; stroke-dasharray: 5,5; opacity: 0.8;}
-        .wire.high-voltage { stroke: #f38ba8 !important; filter: drop-shadow(0px 0px 8px #f38ba8) !important; }
+        .wire { stroke: #22c55e; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.2s, filter 0.2s; }
+        .wire.drawing { opacity: 0.7; stroke-dasharray: 6,4;}
+        .wire.high-voltage { stroke: #ef4444 !important; filter: drop-shadow(0px 0px 8px #ef4444) !important; }
 
         /* Modal Menu Asset */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 200; justify-content: center; align-items: center; }
@@ -59,7 +63,7 @@
 <body>
 
     <div class="navbar">
-        <h3 style="margin: 0; color: #cba6f7;">Embedded IDE - Drag & Drop System</h3>
+        <h3 style="margin: 0; color: #cba6f7;">Wokwi Clone IDE</h3>
         <div class="view-toggles">
             <button id="view-code">Code Only</button>
             <button id="view-split" class="active">Split View</button>
@@ -70,26 +74,25 @@
     <div class="main-container">
         <div class="panel" id="panel-code">
             <div class="controls">
-                <button id="btn-save" class="btn-save">💾 SIMPAN</button>
-                <button id="btn-load" class="btn-load">📂 MUAT</button>
-                <button id="btn-compile" class="btn-compile">▶ KOMPILASI & JALANKAN</button>
+                <button id="btn-save" class="btn-top">💾 Simpan Project</button>
             </div>
             <div id="editor-container"></div>
             <div id="log-container">
-                <span style="color: #cdd6f4;">[System] IDE Siap. Sistem Drag-to-Connect Kabel telah aktif.</span>
+                <span style="color: #cdd6f4;">[System] IDE Siap. Hover ke pin komponen untuk menarik kabel. Klik area kosong untuk membuat belokan kabel.</span>
             </div>
         </div>
 
         <div class="panel" id="panel-sim">
+            <div class="sim-header">
+                <span class="sim-title">Simulation</span>
+                <button id="btn-compile" class="btn-play" title="Kompilasi & Jalankan">▶</button>
+                <button id="btn-add-asset" class="btn-add" title="Tambah Komponen">+</button>
+                <button class="btn-more">⋮</button>
+            </div>
+            
             <div id="workbench">
                 <svg id="wiring-layer"></svg>
-
-                <div class="fab-container">
-                    <button class="btn-floating" id="btn-add-asset" title="Tambah Komponen">➕</button>
-                    <button class="btn-floating" id="btn-wire-mode" title="Mode Kabel Aktif/Nonaktif">🔌</button>
-                </div>
-                
-                <wokwi-arduino-uno id="uno-board" class="draggable" style="top: 50px; left: 50px;"></wokwi-arduino-uno>
+                <wokwi-arduino-uno id="uno-board" class="draggable" style="top: 150px; left: 100px;"></wokwi-arduino-uno>
             </div>
         </div>
     </div>
@@ -97,21 +100,18 @@
     <div class="modal-overlay" id="asset-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span>Tambah Komponen</span>
+                <span>Pilih Komponen</span>
                 <button class="close-modal" id="close-modal">&times;</button>
             </div>
             <ul class="asset-list">
                 <li class="asset-item" onclick="addComponent('wokwi-led', {color: 'red', style: 'width:30px;'})">
                     <wokwi-led color="red" style="width:30px;"></wokwi-led> <span>LED Merah</span>
                 </li>
-                <li class="asset-item" onclick="addComponent('wokwi-lcd1602', {style: 'width:180px;'})">
+                <li class="asset-item" onclick="addComponent('wokwi-lcd1602', {style: 'width:150px;'})">
                     <wokwi-lcd1602 style="width:100px;"></wokwi-lcd1602> <span>LCD 16x2</span>
                 </li>
                 <li class="asset-item" onclick="addComponent('wokwi-analog-joystick', {style: 'width:80px;'})">
                     <wokwi-analog-joystick style="width:50px;"></wokwi-analog-joystick> <span>Joystick</span>
-                </li>
-                <li class="asset-item" onclick="addComponent('wokwi-servo', {style: 'width:80px;'})">
-                    <wokwi-servo style="width:50px;"></wokwi-servo> <span>Servo</span>
                 </li>
                 <li class="asset-item" onclick="addComponent('wokwi-resistor', {value: 220, style: 'width:50px;'})">
                     <wokwi-resistor style="width:50px;"></wokwi-resistor> <span>Resistor</span>
@@ -121,20 +121,7 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         import { CPU, AVRIOPort, portBConfig, portDConfig } from 'https://esm.run/avr8js';
-
-        // Firebase Config (Silakan Sesuaikan)
-        const firebaseConfig = {
-            apiKey: "AIzaSyBmZR9PeOQIdHBwV5USTxU3_41KfIbw9tQ",
-            authDomain: "kwtabiyoso.firebaseapp.com",
-            databaseURL: "https://kwtabiyoso-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "kwtabiyoso"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const docRef = doc(db, "projects", "sim_user_01"); 
 
         const logContainer = document.getElementById('log-container');
         function addLog(message, isError = false) {
@@ -149,7 +136,7 @@
         // INISIALISASI MONACO EDITOR
         // ==========================================
         let monacoEditorInstance = null;
-        const defaultCode = `#include <LiquidCrystal.h>\n\nvoid setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n  digitalWrite(13, LOW);\n  delay(500);\n}`;
+        const defaultCode = `void setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n  digitalWrite(13, LOW);\n  delay(500);\n}`;
 
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
         require(['vs/editor/editor.main'], function() {
@@ -158,7 +145,7 @@
             });
         });
 
-        // VIEW TOGGLE LOGIC
+        // VIEW TOGGLE
         const pnlCode = document.getElementById('panel-code');
         const pnlSim = document.getElementById('panel-sim');
         document.getElementById('view-code').onclick = (e) => setView('code', e.target);
@@ -174,154 +161,162 @@
         }
 
         // ==========================================
-        // SISTEM DRAG & DROP WIRING PROFESSIONAL
+        // SISTEM DRAG & DROP KABEL (WIRING)
         // ==========================================
         const workbench = document.getElementById('workbench');
         const wiringLayer = document.getElementById('wiring-layer');
-        const btnWireMode = document.getElementById('btn-wire-mode');
         
-        let isWiringMode = false;
-        let drawingWire = null; 
         const simulationState = { wires: [] };
         let wireCounter = 0;
+        
+        let wiringState = {
+            active: false,
+            wire: null // Objek kabel yang sedang ditarik
+        };
 
-        btnWireMode.addEventListener('click', () => {
-            isWiringMode = !isWiringMode;
-            btnWireMode.classList.toggle('active', isWiringMode);
-            workbench.style.cursor = isWiringMode ? 'crosshair' : 'default';
-            addLog(isWiringMode ? "MODE KABEL AKTIF: Klik dan tahan pada pin, lalu tarik ke komponen lain." : "MODE KABEL NON-AKTIF: Anda bebas menggeser komponen.");
-        });
-
-        // Tembus Shadow DOM untuk mencari ID Pin di SVG
-        function getPinNameFromPath(path) {
-            for (let node of path) {
-                if (node.id && node.id.length > 0 && !node.id.startsWith('comp-') && node.id !== 'uno-board') {
-                    return node.id.replace('pin-', ''); // Membersihkan prefix 'pin-' jika ada
-                }
+        // Fungsi menggambar ulang path SVG berdasarkan koordinat komponen dan waypoint
+        function renderWire(wireObj) {
+            const fromX = wireObj.fromComp.offsetLeft + wireObj.fromOffset.x;
+            const fromY = wireObj.fromComp.offsetTop + wireObj.fromOffset.y;
+            
+            let d = `M ${fromX} ${fromY}`;
+            
+            // Tambahkan belokan (waypoints)
+            for (let pt of wireObj.waypoints) {
+                d += ` L ${pt.x} ${pt.y}`;
             }
-            return "Pin-Unknown";
+
+            // Tambahkan titik tujuan atau cursor
+            if (wireObj.toComp) {
+                const toX = wireObj.toComp.offsetLeft + wireObj.toOffset.x;
+                const toY = wireObj.toComp.offsetTop + wireObj.toOffset.y;
+                d += ` L ${toX} ${toY}`;
+            } else {
+                d += ` L ${wireObj.mouseX} ${wireObj.mouseY}`;
+            }
+            
+            wireObj.svgElement.setAttribute('d', d);
         }
 
-        function attachComponentEvents(elmnt) {
-            elmnt.addEventListener('mousedown', (e) => {
-                if (isWiringMode) {
-                    e.stopPropagation();
-                    e.preventDefault(); 
-
-                    const rect = elmnt.getBoundingClientRect();
-                    const workbenchRect = workbench.getBoundingClientRect();
-                    
-                    // Offset relatif klik terhadap posisi elemen komponen
-                    const offsetX = e.clientX - rect.left;
-                    const offsetY = e.clientY - rect.top;
-
-                    // Mengambil nama pin aktual dari Wokwi SVG
-                    const pinName = getPinNameFromPath(e.composedPath());
-
-                    // Memulai garis (draw)
-                    const activeSVGLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    activeSVGLine.classList.add('wire', 'drawing');
-                    
-                    const startX = e.clientX - workbenchRect.left;
-                    const startY = e.clientY - workbenchRect.top;
-                    
-                    activeSVGLine.setAttribute('x1', startX);
-                    activeSVGLine.setAttribute('y1', startY);
-                    activeSVGLine.setAttribute('x2', startX);
-                    activeSVGLine.setAttribute('y2', startY);
-                    wiringLayer.appendChild(activeSVGLine);
-
-                    drawingWire = {
-                        svgElement: activeSVGLine,
-                        fromComp: elmnt,
-                        fromPin: pinName,
-                        fromOffsetX: offsetX,
-                        fromOffsetY: offsetY
-                    };
-                } else {
-                    dragMouseDown(e, elmnt);
-                }
-            });
+        function updateAllWires() {
+            simulationState.wires.forEach(renderWire);
         }
 
-        // Meneruskan garis saat mouse ditarik (Drag Line)
-        window.addEventListener('mousemove', (e) => {
-            if (drawingWire) {
-                const workbenchRect = workbench.getBoundingClientRect();
-                let x = e.clientX - workbenchRect.left;
-                let y = e.clientY - workbenchRect.top;
-                drawingWire.svgElement.setAttribute('x2', x);
-                drawingWire.svgElement.setAttribute('y2', y);
+        // Event mousedown utama di workbench
+        workbench.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // Abaikan klik kanan
+
+            const path = e.composedPath();
+            let clickedComp = null;
+            let clickedPin = null;
+
+            // Deteksi jika yang diklik adalah komponen & mencari ID pin di dalam Shadow DOM
+            for (let i = 0; i < path.length; i++) {
+                const el = path[i];
+                if (el.classList && el.classList.contains('draggable')) {
+                    clickedComp = el;
+                }
+                // Logika mendeteksi Pin: Elemen SVG 'g' yang memiliki ID (bukan struktur utama)
+                if (el instanceof SVGElement && el.tagName === 'g' && el.id && !el.id.startsWith('comp-') && el.id !== 'uno-board') {
+                    clickedPin = el.id;
+                }
             }
-        });
 
-        // Melepas klik untuk menyelesaikan sambungan kabel (Drop Line)
-        window.addEventListener('mouseup', (e) => {
-            if (drawingWire) {
-                const path = e.composedPath();
-                let targetComp = null;
-                let targetPin = null;
+            const workbenchRect = workbench.getBoundingClientRect();
+            const mouseX = e.clientX - workbenchRect.left;
+            const mouseY = e.clientY - workbenchRect.top;
 
-                for (let node of path) {
-                    if (node.classList && node.classList.contains('draggable')) {
-                        targetComp = node;
-                    }
-                }
-
-                if (targetComp && targetComp !== drawingWire.fromComp) {
-                    // Berhasil mendarat di komponen berbeda
-                    targetPin = getPinNameFromPath(path);
-                    
-                    const rect = targetComp.getBoundingClientRect();
-                    const toOffsetX = e.clientX - rect.left;
-                    const toOffsetY = e.clientY - rect.top;
-
-                    drawingWire.svgElement.classList.remove('drawing');
-                    
-                    // Simpan mapping Netlist
-                    simulationState.wires.push({
-                        id: `wire-${wireCounter++}`,
-                        fromComp: drawingWire.fromComp,
-                        fromPin: drawingWire.fromPin,
-                        fromOffsetX: drawingWire.fromOffsetX,
-                        fromOffsetY: drawingWire.fromOffsetY,
-                        toComp: targetComp,
-                        toPin: targetPin,
-                        toOffsetX: toOffsetX,
-                        toOffsetY: toOffsetY,
-                        svgElement: drawingWire.svgElement
-                    });
-
-                    addLog(`[Berhasil] ${drawingWire.fromComp.tagName} (Pin ${drawingWire.fromPin}) terhubung ke ${targetComp.tagName} (Pin ${targetPin})`);
-                } else {
-                    // Batal (lepas di ruang kosong atau di komponen yang sama)
-                    wiringLayer.removeChild(drawingWire.svgElement);
-                    addLog(`Kabel batal disambung.`);
-                }
+            // KONDISI 1: KITA SEDANG MENARIK KABEL
+            if (wiringState.active) {
+                e.stopPropagation();
                 
-                drawingWire = null;
+                if (clickedComp && clickedPin && (clickedComp !== wiringState.wire.fromComp || clickedPin !== wiringState.wire.fromPin)) {
+                    // KLIK DI PIN TUJUAN: Selesaikan sambungan
+                    const compRect = clickedComp.getBoundingClientRect();
+                    wiringState.wire.toComp = clickedComp;
+                    wiringState.wire.toPin = clickedPin;
+                    wiringState.wire.toOffset = { x: e.clientX - compRect.left, y: e.clientY - compRect.top };
+                    
+                    wiringState.wire.svgElement.classList.remove('drawing');
+                    simulationState.wires.push(wiringState.wire);
+                    renderWire(wiringState.wire);
+                    
+                    addLog(`Tersambung: ${wiringState.wire.fromComp.tagName}(${wiringState.wire.fromPin}) ke ${clickedComp.tagName}(${clickedPin})`);
+                    wiringState.active = false;
+                    wiringState.wire = null;
+                } else if (!clickedComp) {
+                    // KLIK DI RUANG KOSONG: Buat belokan siku (Waypoint)
+                    wiringState.wire.waypoints.push({ x: mouseX, y: mouseY });
+                    renderWire(wiringState.wire);
+                }
+                return;
+            }
+
+            // KONDISI 2: KITA TIDAK MENARIK KABEL
+            if (clickedComp && clickedPin) {
+                // KLIK PADA PIN: Mulai menarik kabel baru
+                e.stopPropagation();
+                e.preventDefault();
+
+                const compRect = clickedComp.getBoundingClientRect();
+                
+                const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                svgPath.classList.add('wire', 'drawing');
+                svgPath.setAttribute('fill', 'none');
+                wiringLayer.appendChild(svgPath);
+
+                wiringState.active = true;
+                wiringState.wire = {
+                    id: `wire-${wireCounter++}`,
+                    fromComp: clickedComp,
+                    fromPin: clickedPin,
+                    fromOffset: { x: e.clientX - compRect.left, y: e.clientY - compRect.top },
+                    toComp: null,
+                    toPin: null,
+                    toOffset: null,
+                    waypoints: [],
+                    mouseX: mouseX,
+                    mouseY: mouseY,
+                    svgElement: svgPath
+                };
+                
+                renderWire(wiringState.wire);
+            } else if (clickedComp) {
+                // KLIK PADA BODY KOMPONEN: Drag & Drop komponen
+                startDragComponent(clickedComp, e);
             }
         });
 
-        // Update titik kabel ketika komponen digeser
-        function updateConnectedWires() {
-            simulationState.wires.forEach(wire => {
-                // Menghitung ulang titik absolut di dalam workbench berdasarkan posisi komponen + relative offset klik
-                const fromX = wire.fromComp.offsetLeft + wire.fromOffsetX;
-                const fromY = wire.fromComp.offsetTop + wire.fromOffsetY;
-                const toX = wire.toComp.offsetLeft + wire.toOffsetX;
-                const toY = wire.toComp.offsetTop + wire.toOffsetY;
+        // Event mousemove: Memperbarui posisi ujung kabel
+        window.addEventListener('mousemove', (e) => {
+            if (wiringState.active && wiringState.wire) {
+                const workbenchRect = workbench.getBoundingClientRect();
+                wiringState.wire.mouseX = e.clientX - workbenchRect.left;
+                wiringState.wire.mouseY = e.clientY - workbenchRect.top;
+                renderWire(wiringState.wire);
+            }
+        });
 
-                wire.svgElement.setAttribute('x1', fromX);
-                wire.svgElement.setAttribute('y1', fromY);
-                wire.svgElement.setAttribute('x2', toX);
-                wire.svgElement.setAttribute('y2', toY);
-            });
+        // Batal sambung kabel dengan klik kanan atau tombol Escape
+        workbench.addEventListener('contextmenu', (e) => {
+            if(wiringState.active) { e.preventDefault(); cancelWire(); }
+        });
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'Escape' && wiringState.active) cancelWire();
+        });
+
+        function cancelWire() {
+            if(wiringState.wire && wiringState.wire.svgElement) wiringLayer.removeChild(wiringState.wire.svgElement);
+            wiringState.active = false;
+            wiringState.wire = null;
+            addLog("Kabel dibatalkan.");
         }
 
-        function dragMouseDown(e, elmnt) {
+        // Logic Drag & Drop Komponen
+        function startDragComponent(elmnt, e) {
             e.preventDefault();
             let pos3 = e.clientX, pos4 = e.clientY;
+            
             document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
             document.onmousemove = (ev) => {
                 ev.preventDefault();
@@ -331,13 +326,15 @@
                 pos4 = ev.clientY;
                 elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
                 elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
-                updateConnectedWires(); // Kabel auto-adjust saat komponen digeser
+                updateAllWires(); // Kabel ikut bergerak otomatis
             };
             document.querySelectorAll('.draggable').forEach(el => el.style.zIndex = "10");
             elmnt.style.zIndex = "20"; 
         }
 
-        // Modal Add Asset
+        // ==========================================
+        // SISTEM MODAL TAMBAH KOMPONEN
+        // ==========================================
         const modal = document.getElementById('asset-modal');
         document.getElementById('btn-add-asset').onclick = () => modal.style.display = 'flex';
         document.getElementById('close-modal').onclick = () => modal.style.display = 'none';
@@ -348,18 +345,15 @@
             newElement.classList.add('draggable');
             newElement.id = `comp-${compCounter++}`;
             newElement.style.top = '100px';
-            newElement.style.left = '100px';
+            newElement.style.left = '250px';
             
             for (const [key, value] of Object.entries(attributes)) {
                 newElement.setAttribute(key, value);
             }
             
             workbench.appendChild(newElement);
-            attachComponentEvents(newElement); 
             modal.style.display = 'none';
         };
-
-        attachComponentEvents(document.getElementById('uno-board'));
 
         // ==========================================
         // KOMPILASI C++ KE HEX & JALANKAN AVR8JS
@@ -386,11 +380,11 @@
         function triggerPinState(pinNumber, isHigh) {
             simulationState.wires.forEach(wire => {
                 if (wire.fromComp.id === 'uno-board' && wire.fromPin === pinNumber.toString()) {
-                    // Animasi kabel dialiri listrik
+                    // Beri efek warna tegangan tinggi ke kabel
                     if (isHigh) wire.svgElement.classList.add('high-voltage');
                     else wire.svgElement.classList.remove('high-voltage');
 
-                    // Mengirim nilai (value) ke komponen penerima
+                    // Teruskan data arus ke komponen
                     if (wire.toComp.tagName.toLowerCase() === 'wokwi-led') {
                         wire.toComp.value = isHigh;
                     }
@@ -406,14 +400,14 @@
                 runnerInterval = null;
                 document.getElementById('uno-board').led13 = false;
                 simulationState.wires.forEach(w => w.svgElement.classList.remove('high-voltage'));
-                addLog("Simulasi dihentikan.");
-                btnCompile.innerText = "▶ KOMPILASI & JALANKAN";
-                btnCompile.style.backgroundColor = "#f38ba8";
+                addLog("Simulasi Dihentikan.");
+                btnCompile.innerText = "▶";
+                btnCompile.classList.remove('running');
                 return;
             }
 
             const code = monacoEditorInstance.getValue();
-            addLog("Mengirim C++ ke API Compiler Wokwi...");
+            addLog("Mengkompilasi kode...");
             
             const buildPayload = { 
                 board: 'uno',
@@ -431,7 +425,7 @@
                 const result = await response.json();
                 if (result.stderr) { addLog("COMPILER ERROR:\n" + result.stderr, true); return; }
 
-                addLog(`Kompilasi sukses! Memulai mesin AVR8JS...`);
+                addLog(`Berhasil. Memulai mesin Virtual...`);
 
                 const program = new Uint16Array(32768);
                 const programBytes = new Uint8Array(program.buffer);
@@ -439,10 +433,9 @@
                 
                 const cpu = new CPU(program);
                 const portB = new AVRIOPort(cpu, portBConfig); 
-                const portD = new AVRIOPort(cpu, portDConfig); 
                 
                 portB.addListener((value) => {
-                    const pin13High = (value & (1 << 5)) !== 0; // Bit ke 5 di Port B adalah Pin 13
+                    const pin13High = (value & (1 << 5)) !== 0; 
                     document.getElementById('uno-board').led13 = pin13High;
                     triggerPinState(13, pin13High); 
                 });
@@ -452,12 +445,12 @@
                     while (cpu.cycles < cyclesToRun) { cpu.tick(); }
                 }, 16);
 
-                btnCompile.innerText = "⏹ HENTIKAN SIMULASI";
-                btnCompile.style.backgroundColor = "#eba0ac";
+                btnCompile.innerText = "⏹";
+                btnCompile.classList.add('running');
                 addLog("Simulasi Berjalan!");
 
             } catch (error) {
-                addLog("Gagal menghubungi server kompilator: " + error.message, true);
+                addLog("Gagal menghubungi server kompilator.", true);
             }
         });
     </script>
