@@ -5,55 +5,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Embedded Simulator - Wokwi Clone</title>
     <style>
-        :root { --bg: #1e1e2e; --panel: #252538; --text: #cdd6f4; --accent: #74c7ec; --log-bg: #11111b; }
+        /* Wokwi Authentic Color Palette */
+        :root { 
+            --bg: #1e1e1e; 
+            --panel: #252526; 
+            --text: #cccccc; 
+            --accent: #a25bc2; /* Wokwi Purple */
+            --log-bg: #111111;
+            --btn-green: #4caf50;
+            --btn-blue: #2196f3;
+            --btn-gray: #424242;
+        }
+        
         body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         /* Navbar & Panels */
-        .navbar { background: var(--panel); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #313244; z-index: 100;}
-        .view-toggles button { background: #313244; color: var(--text); border: none; padding: 6px 12px; margin: 0 5px; border-radius: 4px; cursor: pointer; transition: 0.2s;}
-        .view-toggles button.active { background: var(--accent); color: #11111b; font-weight: bold;}
+        .navbar { background: #333333; padding: 8px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #111; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.5);}
+        .navbar-brand { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 18px; color: white; letter-spacing: 1px;}
         
-        .main-container { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
-        .panel { background: var(--panel); border-radius: 8px; display: flex; flex-direction: column; border: 1px solid #313244; flex: 1; transition: 0.3s; overflow: hidden; }
+        .view-toggles button { background: transparent; color: var(--text); border: 1px solid #555; padding: 6px 15px; margin: 0 5px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 13px;}
+        .view-toggles button.active { background: #555; color: white; border-color: #777;}
+        
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .panel { background: var(--panel); display: flex; flex-direction: column; flex: 1; transition: 0.3s; overflow: hidden; }
         
         /* Code Panel Specifics */
-        #panel-code { padding: 15px; }
-        #editor-container { flex: 3; border-radius: 6px; overflow: hidden; border: 1px solid #313244; margin-bottom: 10px; }
-        #log-container { flex: 1; background: var(--log-bg); border-radius: 6px; border: 1px solid #313244; padding: 10px; font-family: monospace; font-size: 12px; color: #a6e3a1; overflow-y: auto; white-space: pre-wrap; display: flex; flex-direction: column;}
+        #panel-code { border-right: 2px solid #111; }
+        .panel-header { background: #2d2d2d; padding: 0; display: flex; align-items: flex-end; border-bottom: 1px solid #111; height: 45px;}
+        .tab-active { background: var(--panel); color: white; padding: 10px 20px; border-top: 3px solid var(--accent); font-weight: bold; font-size: 14px; border-radius: 4px 4px 0 0; margin-left: 10px;}
+        .tab-sim-active { background: var(--accent); color: white; padding: 10px 20px; font-weight: bold; font-size: 14px; border-radius: 4px 4px 0 0; margin-left: 10px;}
         
-        .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        .btn-top { background: #313244; color: var(--text); border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 12px; }
-        .btn-top:hover { background: #45475a; }
+        #editor-container { flex: 3; width: 100%; }
+        #log-container { height: 150px; background: var(--log-bg); border-top: 1px solid #111; padding: 10px; font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #a6e3a1; overflow-y: auto; white-space: pre-wrap; display: flex; flex-direction: column;}
         
-        /* Simulation Panel Specifics (Like Video) */
-        .sim-header { background: #181825; padding: 8px 15px; display: flex; align-items: center; border-bottom: 1px solid #313244; gap: 10px; }
-        .sim-title { font-weight: bold; margin-right: 20px; }
-        .btn-play { background: #10b981; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; transition: 0.2s;}
-        .btn-play:hover { background: #059669; transform: scale(1.05); }
-        .btn-play.running { background: #ef4444; }
-        .btn-add { background: #3b82f6; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; transition: 0.2s; }
-        .btn-add:hover { background: #2563eb; transform: scale(1.05); }
-        .btn-more { background: #313244; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; font-weight:bold; }
+        /* Toolbar Simulator Area */
+        .sim-toolbar { background: #333333; padding: 10px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #111; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 10;}
+        .btn-circle { border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: white; transition: 0.2s; box-shadow: 0 3px 5px rgba(0,0,0,0.3);}
+        .btn-circle:hover { transform: scale(1.05); }
+        .btn-circle:active { transform: scale(0.95); }
         
-        #workbench { flex: 1; background-color: #1e1e2e; position: relative; overflow: hidden; cursor: default; }
+        .btn-play { background: var(--btn-green); }
+        .btn-play.running { background: #f44336; }
+        .btn-add { background: var(--btn-blue); font-size: 24px;}
+        .btn-more { background: var(--btn-gray); font-weight:bold; }
+        .btn-save { background: #ff9800; border-radius: 4px; padding: 8px 15px; width: auto; font-size: 14px; font-weight: bold; margin-left: auto;}
+        
+        /* Canvas / Workbench */
+        #workbench { 
+            flex: 1; 
+            background-color: #1e1e1e; 
+            /* Grid Pattern Wokwi */
+            background-image: radial-gradient(#444 1px, transparent 1px);
+            background-size: 20px 20px;
+            position: relative; 
+            overflow: hidden; 
+            cursor: default; 
+        }
 
-        .draggable { position: absolute; cursor: grab; user-select: none; z-index: 10;}
-        .draggable:active { cursor: grabbing; }
+        .draggable { position: absolute; cursor: grab; user-select: none; z-index: 10; filter: drop-shadow(0px 5px 10px rgba(0,0,0,0.5));}
+        .draggable:active { cursor: grabbing; filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.7));}
 
         /* Wiring Layer */
         #wiring-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
-        .wire { stroke: #22c55e; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.2s, filter 0.2s; }
+        .wire { stroke: #4caf50; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.2s, filter 0.2s; pointer-events: stroke; cursor: pointer;}
+        .wire:hover { stroke: #81c784; stroke-width: 6; }
         .wire.drawing { opacity: 0.7; stroke-dasharray: 6,4;}
-        .wire.high-voltage { stroke: #ef4444 !important; filter: drop-shadow(0px 0px 8px #ef4444) !important; }
+        .wire.high-voltage { stroke: #f44336 !important; filter: drop-shadow(0px 0px 8px #f44336) !important; }
 
         /* Modal Menu Asset */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 200; justify-content: center; align-items: center; }
-        .modal-content { background: var(--panel); border: 1px solid #313244; border-radius: 8px; width: 350px; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-        .modal-header { padding: 15px; border-bottom: 1px solid #313244; display: flex; justify-content: space-between; align-items: center; font-weight: bold;}
-        .close-modal { background: none; border: none; color: #f38ba8; font-size: 20px; cursor: pointer; padding: 0;}
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; justify-content: center; align-items: center; backdrop-filter: blur(3px);}
+        .modal-content { background: var(--panel); border: 1px solid #444; border-radius: 8px; width: 350px; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; font-weight: bold; background: #2d2d2d; color: white; border-radius: 8px 8px 0 0;}
+        .close-modal { background: none; border: none; color: #ff5252; font-size: 24px; cursor: pointer; padding: 0;}
         .asset-list { list-style: none; padding: 0; margin: 0; }
-        .asset-item { padding: 15px; border-bottom: 1px solid #313244; display: flex; align-items: center; gap: 15px; cursor: pointer; transition: 0.2s; }
-        .asset-item:hover { background: #313244; }
+        .asset-item { padding: 15px 20px; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 15px; cursor: pointer; transition: 0.2s; color: white;}
+        .asset-item:hover { background: #333; padding-left: 25px;}
         
     </style>
     
@@ -63,36 +89,46 @@
 <body>
 
     <div class="navbar">
-        <h3 style="margin: 0; color: #cba6f7;">Wokwi Clone IDE</h3>
+        <div class="navbar-brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a25bc2" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            Wokwi Clone IDE
+        </div>
         <div class="view-toggles">
-            <button id="view-code">Code Only</button>
-            <button id="view-split" class="active">Split View</button>
-            <button id="view-sim">Sim Only</button>
+            <button id="view-code">Code</button>
+            <button id="view-split" class="active">Split</button>
+            <button id="view-sim">Simulation</button>
         </div>
     </div>
 
     <div class="main-container">
         <div class="panel" id="panel-code">
-            <div class="controls">
-                <button id="btn-save" class="btn-top">💾 Simpan Project</button>
+            <div class="panel-header">
+                <div class="tab-active">sketch.ino</div>
             </div>
             <div id="editor-container"></div>
             <div id="log-container">
-                <span style="color: #cdd6f4;">[System] IDE Siap. Hover ke pin komponen untuk menarik kabel. Klik area kosong untuk membuat belokan kabel.</span>
+                <span style="color: #4caf50;">[System] IDE Siap.</span>
+                <span style="color: #9e9e9e;">- Drag komponen untuk memindahkannya.</span>
+                <span style="color: #9e9e9e;">- Klik pin komponen untuk menarik kabel.</span>
+                <span style="color: #9e9e9e;">- Klik area kosong untuk membuat belokan (waypoint) kabel.</span>
+                <span style="color: #9e9e9e;">- Double-click pada kabel untuk menghapusnya.</span>
             </div>
         </div>
 
         <div class="panel" id="panel-sim">
-            <div class="sim-header">
-                <span class="sim-title">Simulation</span>
-                <button id="btn-compile" class="btn-play" title="Kompilasi & Jalankan">▶</button>
-                <button id="btn-add-asset" class="btn-add" title="Tambah Komponen">+</button>
-                <button class="btn-more">⋮</button>
+            <div class="panel-header" style="background: #1e1e1e;">
+                <div class="tab-sim-active">Simulation</div>
+            </div>
+            <div class="sim-toolbar">
+                <button id="btn-compile" class="btn-circle btn-play" title="Start Simulation">▶</button>
+                <button id="btn-add-asset" class="btn-circle btn-add" title="Add Part">+</button>
+                <button class="btn-circle btn-more" title="More Options">⋮</button>
+                <button id="btn-save" class="btn-circle btn-save">💾 Save to Cloud</button>
             </div>
             
             <div id="workbench">
                 <svg id="wiring-layer"></svg>
-                <wokwi-arduino-uno id="uno-board" class="draggable" style="top: 150px; left: 100px;"></wokwi-arduino-uno>
+                <wokwi-arduino-uno id="uno-board" class="draggable" style="top: 100px; left: 100px;"></wokwi-arduino-uno>
             </div>
         </div>
     </div>
@@ -100,21 +136,24 @@
     <div class="modal-overlay" id="asset-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span>Pilih Komponen</span>
+                <span>Add a new part</span>
                 <button class="close-modal" id="close-modal">&times;</button>
             </div>
             <ul class="asset-list">
                 <li class="asset-item" onclick="addComponent('wokwi-led', {color: 'red', style: 'width:30px;'})">
-                    <wokwi-led color="red" style="width:30px;"></wokwi-led> <span>LED Merah</span>
+                    <wokwi-led color="red" style="width:20px;"></wokwi-led> <span>LED Merah</span>
+                </li>
+                <li class="asset-item" onclick="addComponent('wokwi-led', {color: 'green', style: 'width:30px;'})">
+                    <wokwi-led color="green" style="width:20px;"></wokwi-led> <span>LED Hijau</span>
                 </li>
                 <li class="asset-item" onclick="addComponent('wokwi-lcd1602', {style: 'width:150px;'})">
-                    <wokwi-lcd1602 style="width:100px;"></wokwi-lcd1602> <span>LCD 16x2</span>
+                    <wokwi-lcd1602 style="width:50px;"></wokwi-lcd1602> <span>LCD 16x2</span>
                 </li>
-                <li class="asset-item" onclick="addComponent('wokwi-analog-joystick', {style: 'width:80px;'})">
-                    <wokwi-analog-joystick style="width:50px;"></wokwi-analog-joystick> <span>Joystick</span>
+                <li class="asset-item" onclick="addComponent('wokwi-pushbutton', {style: 'width:40px;'})">
+                    <wokwi-pushbutton style="width:30px;"></wokwi-pushbutton> <span>Push Button</span>
                 </li>
                 <li class="asset-item" onclick="addComponent('wokwi-resistor', {value: 220, style: 'width:50px;'})">
-                    <wokwi-resistor style="width:50px;"></wokwi-resistor> <span>Resistor</span>
+                    <wokwi-resistor style="width:30px;"></wokwi-resistor> <span>Resistor</span>
                 </li>
             </ul>
         </div>
@@ -123,10 +162,13 @@
     <script type="module">
         import { CPU, AVRIOPort, portBConfig, portDConfig } from 'https://esm.run/avr8js';
 
+        // ==========================================
+        // SYSTEM LOGGING
+        // ==========================================
         const logContainer = document.getElementById('log-container');
         function addLog(message, isError = false) {
             const span = document.createElement('span');
-            span.style.color = isError ? '#f38ba8' : '#a6e3a1';
+            span.style.color = isError ? '#ff5252' : '#a6e3a1';
             span.innerText = `> ${message}`;
             logContainer.appendChild(span);
             logContainer.scrollTop = logContainer.scrollHeight;
@@ -141,11 +183,19 @@
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
         require(['vs/editor/editor.main'], function() {
             monacoEditorInstance = monaco.editor.create(document.getElementById('editor-container'), {
-                value: defaultCode, language: 'cpp', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }
+                value: defaultCode, 
+                language: 'cpp', 
+                theme: 'vs-dark', 
+                automaticLayout: true, 
+                minimap: { enabled: false },
+                fontSize: 14,
+                fontFamily: "'Courier New', Consolas, monospace"
             });
         });
 
-        // VIEW TOGGLE
+        // ==========================================
+        // VIEW TOGGLE LAYOUT
+        // ==========================================
         const pnlCode = document.getElementById('panel-code');
         const pnlSim = document.getElementById('panel-sim');
         document.getElementById('view-code').onclick = (e) => setView('code', e.target);
@@ -166,27 +216,18 @@
         const workbench = document.getElementById('workbench');
         const wiringLayer = document.getElementById('wiring-layer');
         
-        const simulationState = { wires: [] };
+        let simulationState = { wires: [] };
         let wireCounter = 0;
         
-        let wiringState = {
-            active: false,
-            wire: null // Objek kabel yang sedang ditarik
-        };
+        let wiringState = { active: false, wire: null };
 
-        // Fungsi menggambar ulang path SVG berdasarkan koordinat komponen dan waypoint
         function renderWire(wireObj) {
             const fromX = wireObj.fromComp.offsetLeft + wireObj.fromOffset.x;
             const fromY = wireObj.fromComp.offsetTop + wireObj.fromOffset.y;
             
             let d = `M ${fromX} ${fromY}`;
-            
-            // Tambahkan belokan (waypoints)
-            for (let pt of wireObj.waypoints) {
-                d += ` L ${pt.x} ${pt.y}`;
-            }
+            for (let pt of wireObj.waypoints) { d += ` L ${pt.x} ${pt.y}`; }
 
-            // Tambahkan titik tujuan atau cursor
             if (wireObj.toComp) {
                 const toX = wireObj.toComp.offsetLeft + wireObj.toOffset.x;
                 const toY = wireObj.toComp.offsetTop + wireObj.toOffset.y;
@@ -194,29 +235,22 @@
             } else {
                 d += ` L ${wireObj.mouseX} ${wireObj.mouseY}`;
             }
-            
             wireObj.svgElement.setAttribute('d', d);
         }
 
-        function updateAllWires() {
-            simulationState.wires.forEach(renderWire);
-        }
+        function updateAllWires() { simulationState.wires.forEach(renderWire); }
 
-        // Event mousedown utama di workbench
         workbench.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return; // Abaikan klik kanan
+            if (e.button !== 0) return; // Hanya klik kiri
 
             const path = e.composedPath();
             let clickedComp = null;
             let clickedPin = null;
 
-            // Deteksi jika yang diklik adalah komponen & mencari ID pin di dalam Shadow DOM
+            // Deteksi Shadow DOM (Mencari pin dan komponen)
             for (let i = 0; i < path.length; i++) {
                 const el = path[i];
-                if (el.classList && el.classList.contains('draggable')) {
-                    clickedComp = el;
-                }
-                // Logika mendeteksi Pin: Elemen SVG 'g' yang memiliki ID (bukan struktur utama)
+                if (el.classList && el.classList.contains('draggable')) { clickedComp = el; }
                 if (el instanceof SVGElement && el.tagName === 'g' && el.id && !el.id.startsWith('comp-') && el.id !== 'uno-board') {
                     clickedPin = el.id;
                 }
@@ -226,12 +260,11 @@
             const mouseX = e.clientX - workbenchRect.left;
             const mouseY = e.clientY - workbenchRect.top;
 
-            // KONDISI 1: KITA SEDANG MENARIK KABEL
+            // STATUS 1: SEDANG MENARIK KABEL
             if (wiringState.active) {
                 e.stopPropagation();
-                
                 if (clickedComp && clickedPin && (clickedComp !== wiringState.wire.fromComp || clickedPin !== wiringState.wire.fromPin)) {
-                    // KLIK DI PIN TUJUAN: Selesaikan sambungan
+                    // SELESAIKAN KABEL (Terkoneksi)
                     const compRect = clickedComp.getBoundingClientRect();
                     wiringState.wire.toComp = clickedComp;
                     wiringState.wire.toPin = clickedPin;
@@ -241,25 +274,33 @@
                     simulationState.wires.push(wiringState.wire);
                     renderWire(wiringState.wire);
                     
-                    addLog(`Tersambung: ${wiringState.wire.fromComp.tagName}(${wiringState.wire.fromPin}) ke ${clickedComp.tagName}(${clickedPin})`);
+                    addLog(`Tersambung: ${wiringState.wire.fromComp.tagName} (Pin: ${wiringState.wire.fromPin}) ➔ ${clickedComp.tagName} (Pin: ${clickedPin})`);
+                    
+                    // Fitur hapus kabel dengan Double Click
+                    wiringState.wire.svgElement.addEventListener('dblclick', function(ev) {
+                        ev.stopPropagation();
+                        wiringLayer.removeChild(this);
+                        simulationState.wires = simulationState.wires.filter(w => w.id !== wiringState.wire.id);
+                        addLog("Kabel dihapus.");
+                    });
+
                     wiringState.active = false;
                     wiringState.wire = null;
                 } else if (!clickedComp) {
-                    // KLIK DI RUANG KOSONG: Buat belokan siku (Waypoint)
+                    // BUAT BELOKAN (Waypoint)
                     wiringState.wire.waypoints.push({ x: mouseX, y: mouseY });
                     renderWire(wiringState.wire);
                 }
                 return;
             }
 
-            // KONDISI 2: KITA TIDAK MENARIK KABEL
+            // STATUS 2: MULAI TARIK KABEL ATAU PINDAH KOMPONEN
             if (clickedComp && clickedPin) {
-                // KLIK PADA PIN: Mulai menarik kabel baru
+                // MULAI KABEL BARU
                 e.stopPropagation();
                 e.preventDefault();
 
                 const compRect = clickedComp.getBoundingClientRect();
-                
                 const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 svgPath.classList.add('wire', 'drawing');
                 svgPath.setAttribute('fill', 'none');
@@ -271,23 +312,18 @@
                     fromComp: clickedComp,
                     fromPin: clickedPin,
                     fromOffset: { x: e.clientX - compRect.left, y: e.clientY - compRect.top },
-                    toComp: null,
-                    toPin: null,
-                    toOffset: null,
-                    waypoints: [],
-                    mouseX: mouseX,
-                    mouseY: mouseY,
+                    toComp: null, toPin: null, toOffset: null,
+                    waypoints: [], mouseX: mouseX, mouseY: mouseY,
                     svgElement: svgPath
                 };
-                
                 renderWire(wiringState.wire);
+
             } else if (clickedComp) {
-                // KLIK PADA BODY KOMPONEN: Drag & Drop komponen
+                // GESER KOMPONEN
                 startDragComponent(clickedComp, e);
             }
         });
 
-        // Event mousemove: Memperbarui posisi ujung kabel
         window.addEventListener('mousemove', (e) => {
             if (wiringState.active && wiringState.wire) {
                 const workbenchRect = workbench.getBoundingClientRect();
@@ -297,22 +333,16 @@
             }
         });
 
-        // Batal sambung kabel dengan klik kanan atau tombol Escape
-        workbench.addEventListener('contextmenu', (e) => {
-            if(wiringState.active) { e.preventDefault(); cancelWire(); }
-        });
+        // Batal sambung kabel dengan ESC
         window.addEventListener('keydown', (e) => {
-            if(e.key === 'Escape' && wiringState.active) cancelWire();
+            if(e.key === 'Escape' && wiringState.active) {
+                wiringLayer.removeChild(wiringState.wire.svgElement);
+                wiringState.active = false;
+                wiringState.wire = null;
+                addLog("Penarikan kabel dibatalkan.");
+            }
         });
 
-        function cancelWire() {
-            if(wiringState.wire && wiringState.wire.svgElement) wiringLayer.removeChild(wiringState.wire.svgElement);
-            wiringState.active = false;
-            wiringState.wire = null;
-            addLog("Kabel dibatalkan.");
-        }
-
-        // Logic Drag & Drop Komponen
         function startDragComponent(elmnt, e) {
             e.preventDefault();
             let pos3 = e.clientX, pos4 = e.clientY;
@@ -326,37 +356,37 @@
                 pos4 = ev.clientY;
                 elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
                 elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
-                updateAllWires(); // Kabel ikut bergerak otomatis
+                updateAllWires(); // Kabel otomatis mengikuti komponen
             };
             document.querySelectorAll('.draggable').forEach(el => el.style.zIndex = "10");
             elmnt.style.zIndex = "20"; 
         }
 
         // ==========================================
-        // SISTEM MODAL TAMBAH KOMPONEN
+        // MODAL TAMBAH KOMPONEN
         // ==========================================
         const modal = document.getElementById('asset-modal');
         document.getElementById('btn-add-asset').onclick = () => modal.style.display = 'flex';
         document.getElementById('close-modal').onclick = () => modal.style.display = 'none';
+        
         let compCounter = 0;
-
         window.addComponent = function(type, attributes = {}) {
             const newElement = document.createElement(type);
             newElement.classList.add('draggable');
             newElement.id = `comp-${compCounter++}`;
-            newElement.style.top = '100px';
-            newElement.style.left = '250px';
+            newElement.style.top = '150px';
+            newElement.style.left = '350px';
             
             for (const [key, value] of Object.entries(attributes)) {
                 newElement.setAttribute(key, value);
             }
-            
             workbench.appendChild(newElement);
             modal.style.display = 'none';
+            addLog(`Komponen ditambahkan: ${type}`);
         };
 
         // ==========================================
-        // KOMPILASI C++ KE HEX & JALANKAN AVR8JS
+        // KOMPILASI C++ KE HEX & SIMULASI AVR8JS
         // ==========================================
         const btnCompile = document.getElementById('btn-compile');
         let runnerInterval = null;
@@ -380,11 +410,10 @@
         function triggerPinState(pinNumber, isHigh) {
             simulationState.wires.forEach(wire => {
                 if (wire.fromComp.id === 'uno-board' && wire.fromPin === pinNumber.toString()) {
-                    // Beri efek warna tegangan tinggi ke kabel
                     if (isHigh) wire.svgElement.classList.add('high-voltage');
                     else wire.svgElement.classList.remove('high-voltage');
 
-                    // Teruskan data arus ke komponen
+                    // Teruskan data arus ke komponen yang terhubung
                     if (wire.toComp.tagName.toLowerCase() === 'wokwi-led') {
                         wire.toComp.value = isHigh;
                     }
@@ -396,6 +425,7 @@
             if (!monacoEditorInstance) return;
             
             if (runnerInterval) {
+                // STOP SIMULASI
                 clearInterval(runnerInterval);
                 runnerInterval = null;
                 document.getElementById('uno-board').led13 = false;
@@ -407,25 +437,24 @@
             }
 
             const code = monacoEditorInstance.getValue();
-            addLog("Mengkompilasi kode...");
-            
-            const buildPayload = { 
-                board: 'uno',
-                sketch: 'sketch.ino',
-                files: { "sketch.ino": code }
-            };
+            addLog("Mengkompilasi kode ke server Wokwi...");
+            btnCompile.innerText = "⏳";
             
             try {
                 const response = await fetch('https://hexi.wokwi.com/build', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildPayload)
+                    body: JSON.stringify({ board: 'uno', sketch: 'sketch.ino', files: { "sketch.ino": code }})
                 });
                 
                 const result = await response.json();
-                if (result.stderr) { addLog("COMPILER ERROR:\n" + result.stderr, true); return; }
+                if (result.stderr) { 
+                    addLog("COMPILER ERROR:\n" + result.stderr, true); 
+                    btnCompile.innerText = "▶";
+                    return; 
+                }
 
-                addLog(`Berhasil. Memulai mesin Virtual...`);
+                addLog(`Kompilasi Berhasil. Memulai Virtual CPU...`);
 
                 const program = new Uint16Array(32768);
                 const programBytes = new Uint8Array(program.buffer);
@@ -434,6 +463,7 @@
                 const cpu = new CPU(program);
                 const portB = new AVRIOPort(cpu, portBConfig); 
                 
+                // Monitor Pin 13 (Built-in LED & External Wiring)
                 portB.addListener((value) => {
                     const pin13High = (value & (1 << 5)) !== 0; 
                     document.getElementById('uno-board').led13 = pin13High;
@@ -451,6 +481,7 @@
 
             } catch (error) {
                 addLog("Gagal menghubungi server kompilator.", true);
+                btnCompile.innerText = "▶";
             }
         });
     </script>
